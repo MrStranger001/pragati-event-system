@@ -2,6 +2,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
+const Event = require('./models/Event');
 
 const seedData = async () => {
   try {
@@ -14,7 +15,8 @@ const seedData = async () => {
 
     // Clear existing users (optional - comment this out if you don't want to clear)
     // await User.deleteMany({});
-    // console.log('Cleared existing users');
+    // await Event.deleteMany({});
+    // console.log('Cleared existing data');
 
     // Hash password
     const hashedPassword = await bcrypt.hash('admin123', 10);
@@ -89,12 +91,15 @@ const seedData = async () => {
     ];
 
     // Insert admins
+    const createdAdmins = [];
     for (const admin of admins) {
       const existingAdmin = await User.findOne({ email: admin.email });
       if (!existingAdmin) {
-        await User.create(admin);
+        const newAdmin = await User.create(admin);
+        createdAdmins.push(newAdmin);
         console.log(`✅ Created ${admin.role}: ${admin.email}`);
       } else {
+        createdAdmins.push(existingAdmin);
         console.log(`⚠️  ${admin.role} already exists: ${admin.email}`);
       }
     }
@@ -110,6 +115,68 @@ const seedData = async () => {
       }
     }
 
+    // Create sample events if none exist
+    const existingEvents = await Event.countDocuments();
+    if (existingEvents === 0 && createdAdmins.length > 0) {
+      const sampleEvents = [
+        {
+          name: 'Tech Talk: AI & Machine Learning',
+          description: 'Join us for an exciting session on Artificial Intelligence and Machine Learning. Industry experts will share insights on the latest trends and technologies.',
+          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
+          location: 'Auditorium A, Main Block',
+          category: 'technical',
+          maxAttendees: 100,
+          createdBy: createdAdmins[0]._id,
+          status: 'published'
+        },
+        {
+          name: 'Cultural Fest 2024',
+          description: 'Experience the vibrant colors of our annual cultural festival. Dance, music, drama, and much more!',
+          date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 2 weeks from now
+          location: 'Open Ground',
+          category: 'cultural',
+          maxAttendees: 500,
+          createdBy: createdAdmins[1]._id,
+          status: 'published'
+        },
+        {
+          name: 'Inter-College Cricket Tournament',
+          description: 'Show your cricket skills in our inter-college tournament. Teams of 11 players required.',
+          date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
+          location: 'College Cricket Ground',
+          category: 'sports',
+          maxAttendees: 200,
+          createdBy: createdAdmins[2]._id,
+          status: 'published'
+        },
+        {
+          name: 'Web Development Workshop',
+          description: 'Learn modern web development with React, Node.js, and MongoDB. Hands-on coding session with experts.',
+          date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
+          location: 'Computer Lab 1',
+          category: 'workshop',
+          maxAttendees: 50,
+          createdBy: createdAdmins[0]._id,
+          status: 'published'
+        },
+        {
+          name: 'Career Guidance Seminar',
+          description: 'Get insights from industry leaders about career opportunities in engineering and technology sectors.',
+          date: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000), // 12 days from now
+          location: 'Seminar Hall',
+          category: 'seminar',
+          maxAttendees: 150,
+          createdBy: createdAdmins[1]._id,
+          status: 'published'
+        }
+      ];
+
+      for (const event of sampleEvents) {
+        await Event.create(event);
+        console.log(`✅ Created sample event: ${event.name}`);
+      }
+    }
+
     console.log('\n🎉 Database seeded successfully!');
     console.log('\n📋 Admin Credentials:');
     console.log('Email: superadmin@pragati.edu | Password: admin123');
@@ -119,6 +186,8 @@ const seedData = async () => {
     console.log('Email: rahul.kumar@pragati.edu | Password: student123');
     console.log('Email: priya.sharma@pragati.edu | Password: student123');
     console.log('Email: amit.patel@pragati.edu | Password: student123');
+    console.log('\n🌐 Start the server with: npm start');
+    console.log('🌐 Open browser at: http://localhost:3000');
 
     mongoose.connection.close();
   } catch (error) {
