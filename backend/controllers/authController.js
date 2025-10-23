@@ -10,12 +10,17 @@ exports.register = async (req, res) => {
       return res.status(400).json({ error: 'Name, email and password are required' });
     }
     
-    if (!email.endsWith('@pragati.edu')) {
-      return res.status(400).json({ error: 'Only Pragati emails allowed' });
+    // Validate email format
+    const emailRegex = /^[^\s@]+@pragati\.edu$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Only valid Pragati emails (@pragati.edu) are allowed' });
     }
 
+    // Sanitize email to lowercase
+    const sanitizedEmail = email.toLowerCase().trim();
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: sanitizedEmail });
     if (existingUser) {
       return res.status(400).json({ error: 'User already exists' });
     }
@@ -24,8 +29,8 @@ exports.register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = new User({ 
-      name, 
-      email, 
+      name: name.trim(), 
+      email: sanitizedEmail, 
       password: hashedPassword, 
       phone: phone || '', 
       notificationPreference: notificationPreference || 'email',
@@ -48,7 +53,16 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ email });
+    // Sanitize email
+    const sanitizedEmail = email.toLowerCase().trim();
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@pragati\.edu$/;
+    if (!emailRegex.test(sanitizedEmail)) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const user = await User.findOne({ email: sanitizedEmail });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }

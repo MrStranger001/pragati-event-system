@@ -40,6 +40,12 @@ exports.removeAdmin = async (req, res) => {
     }
 
     const { adminId } = req.body;
+    
+    // Validate adminId format
+    if (!adminId || !adminId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ error: 'Invalid admin ID' });
+    }
+    
     await User.findByIdAndDelete(adminId);
     res.json({ message: 'Admin removed.', success: true });
   } catch (error) {
