@@ -105,7 +105,13 @@ exports.updatePhone = async (req, res) => {
       return res.status(400).json({ error: 'Phone number is required' });
     }
 
-    await User.findByIdAndUpdate(req.user.id, { phone });
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(phone.replace(/[\s()-]/g, ''))) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
+    }
+
+    await User.findByIdAndUpdate(req.user.id, { phone: phone.trim() });
     
     res.json({ message: 'Phone number updated successfully', success: true });
   } catch (error) {

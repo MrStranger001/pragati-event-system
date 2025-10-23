@@ -44,24 +44,31 @@ app.use('/auth', authLimiter, authRoutes);
 app.use('/admin', apiLimiter, adminRoutes);
 app.use('/event', apiLimiter, eventRoutes);
 
+// Rate limiting for static page serving (lighter limit)
+const pageLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 60, // limit each IP to 60 page requests per minute
+  message: 'Too many page requests, please try again later.'
+});
+
 // Serve frontend pages
-app.get('/', (req, res) => {
+app.get('/', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-app.get('/login', (req, res) => {
+app.get('/login', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
-app.get('/signup', (req, res) => {
+app.get('/signup', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/signup.html'));
 });
 
-app.get('/events', (req, res) => {
+app.get('/events', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/events.html'));
 });
 
-app.get('/admin-dashboard', (req, res) => {
+app.get('/admin-dashboard', pageLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin-dashboard.html'));
 });
 
