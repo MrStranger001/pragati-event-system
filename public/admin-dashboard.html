@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Pragati Event System</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard-container">
+            <div class="navbar">
+                <h1>🎓 Admin Dashboard</h1>
+                <div class="navbar-right">
+                    <div class="user-info" id="userInfo">Loading...</div>
+                    <button class="btn-logout" onclick="logout()">Logout</button>
+                </div>
+            </div>
+            
+            <div id="message"></div>
+            
+            <div id="loading" class="loading">Loading dashboard...</div>
+            
+            <div id="dashboardContent" style="display: none;">
+                <!-- Stats Section -->
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <h3>Total Events</h3>
+                        <div class="stat-number" id="totalEvents">0</div>
+                    </div>
+                    <div class="stat-card green">
+                        <h3>Total Enrollments</h3>
+                        <div class="stat-number" id="totalEnrollments">0</div>
+                    </div>
+                    <div class="stat-card orange">
+                        <h3>Total Students</h3>
+                        <div class="stat-number" id="totalStudents">0</div>
+                    </div>
+                </div>
+                
+                <!-- Create Event Button -->
+                <div style="margin-bottom: 30px;">
+                    <button class="btn" onclick="showCreateEventModal()" style="width: auto; padding: 12px 30px;">
+                        ➕ Create New Event
+                    </button>
+                </div>
+                
+                <!-- Events Section -->
+                <div class="section">
+                    <h2>📅 My Events</h2>
+                    <div id="eventsTable"></div>
+                </div>
+                
+                <!-- Students Section -->
+                <div class="section">
+                    <h2>👥 All Students</h2>
+                    <div class="table-container">
+                        <table id="studentsTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Energy</th>
+                                    <th>Points</th>
+                                    <th>Joined</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Event Modal -->
+    <div id="createEventModal" class="modal">
+        <div class="modal-content">
+            <h2>Create New Event</h2>
+            <form id="createEventForm">
+                <div class="form-group">
+                    <label for="eventName">Event Name</label>
+                    <input type="text" id="eventName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="eventDescription">Description</label>
+                    <textarea id="eventDescription" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; min-height: 100px;"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="eventDate">Date</label>
+                    <input type="datetime-local" id="eventDate" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="eventLocation">Location</label>
+                    <input type="text" id="eventLocation" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="eventCategory">Category</label>
+                    <select id="eventCategory" required>
+                        <option value="technical">Technical</option>
+                        <option value="cultural">Cultural</option>
+                        <option value="sports">Sports</option>
+                        <option value="workshop">Workshop</option>
+                        <option value="seminar">Seminar</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="eventMaxAttendees">Max Attendees</label>
+                    <input type="number" id="eventMaxAttendees" value="100" required>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn" style="width: auto; flex: 1;">Create Event</button>
+                    <button type="button" class="btn btn-close" onclick="closeCreateEventModal()" style="width: auto;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Event Details Modal -->
+    <div id="eventDetailsModal" class="modal">
+        <div class="modal-content">
+            <h2 id="eventDetailsTitle">Event Details</h2>
+            <div id="eventDetailsContent"></div>
+            <button class="btn btn-close" onclick="closeEventDetailsModal()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('token');
+        let user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        if (!token || !['super_admin', 'stall_admin', 'ncc_admin'].includes(user.role)) {
+            window.location.href = '/';
+        }
+        
+        document.getElementById('userInfo').textContent = `👋 ${user.name} (${user.role.replace('_', ' ')})`;
+        
+        async function loadDashboard() {
+            try {
+                const response = await fetch('/admin/dashboard', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                document.getElementById('loading').style.display = 'none';
+                
+                if (data.success) {
+                    document.getElementById('dashboardContent').style.display = 'block';
+                    displayStats(data.stats);
+                    displayEvents(data.events);
+                    displayStudents(data.students);
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                document.getElementById('loading').innerHTML = '<div class="alert alert-error">Failed to load dashboard</div>';
+            }
+        }
+        
+        function displayStats(stats) {
+            document.getElementById('totalEvents').textContent = stats.totalEvents;
+            document.getElementById('totalEnrollments').textContent = stats.totalEnrollments;
+            document.getElementById('totalStudents').textContent = stats.totalStudents;
+        }
+        
+        function displayEvents(events) {
+            const container = document.getElementById('eventsTable');
+            
+            if (events.length === 0) {
+                container.innerHTML = '<p style="color: #999;">No events created yet.</p>';
+                return;
+            }
+            
+            let html = '<div class="table-container"><table><thead><tr><th>Event Name</th><th>Date</th><th>Category</th><th>Enrollments</th><th>Actions</th></tr></thead><tbody>';
+            
+            events.forEach(event => {
+                const eventDate = new Date(event.date).toLocaleDateString();
+                html += `
+                    <tr>
+                        <td>${event.name}</td>
+                        <td>${eventDate}</td>
+                        <td><span style="padding: 5px 10px; background: #667eea; color: white; border-radius: 5px; font-size: 12px;">${event.category}</span></td>
+                        <td>${event.attendees.length}/${event.maxAttendees}</td>
+                        <td><button class="btn-small btn-primary" onclick="viewEventDetails('${event._id}')">View Details</button></td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+        
+        function displayStudents(students) {
+            const tbody = document.getElementById('studentsTableBody');
+            
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">No students registered yet.</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = students.map(student => `
+                <tr>
+                    <td>${student.name}</td>
+                    <td>${student.email}</td>
+                    <td>${student.phone || 'Not provided'}</td>
+                    <td><span style="color: #4CAF50; font-weight: bold;">${student.energy}</span></td>
+                    <td><span style="color: #FF9800; font-weight: bold;">${student.points}</span></td>
+                    <td>${new Date(student.createdAt).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+        }
+        
+        function showCreateEventModal() {
+            document.getElementById('createEventModal').classList.add('active');
+        }
+        
+        function closeCreateEventModal() {
+            document.getElementById('createEventModal').classList.remove('active');
+            document.getElementById('createEventForm').reset();
+        }
+        
+        async function viewEventDetails(eventId) {
+            try {
+                const response = await fetch(`/admin/event/${eventId}/enrollments`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const event = data.event;
+                    document.getElementById('eventDetailsTitle').textContent = event.name;
+                    
+                    let html = `
+                        <p><strong>Description:</strong> ${event.description}</p>
+                        <p><strong>Date:</strong> ${new Date(event.date).toLocaleString()}</p>
+                        <p><strong>Total Enrollments:</strong> ${event.totalEnrollments}</p>
+                        <h3 style="margin-top: 20px; margin-bottom: 10px;">Enrolled Students</h3>
+                    `;
+                    
+                    if (event.attendees.length > 0) {
+                        html += '<div class="table-container"><table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Energy</th><th>Points</th></tr></thead><tbody>';
+                        event.attendees.forEach(attendee => {
+                            html += `
+                                <tr>
+                                    <td>${attendee.name}</td>
+                                    <td>${attendee.email}</td>
+                                    <td>${attendee.phone || 'N/A'}</td>
+                                    <td>${attendee.energy}</td>
+                                    <td>${attendee.points}</td>
+                                </tr>
+                            `;
+                        });
+                        html += '</tbody></table></div>';
+                    } else {
+                        html += '<p style="color: #999;">No students enrolled yet.</p>';
+                    }
+                    
+                    document.getElementById('eventDetailsContent').innerHTML = html;
+                    document.getElementById('eventDetailsModal').classList.add('active');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        
+        function closeEventDetailsModal() {
+            document.getElementById('eventDetailsModal').classList.remove('active');
+        }
+        
+        document.getElementById('createEventForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const eventData = {
+                name: document.getElementById('eventName').value,
+                description: document.getElementById('eventDescription').value,
+                date: document.getElementById('eventDate').value,
+                location: document.getElementById('eventLocation').value,
+                category: document.getElementById('eventCategory').value,
+                maxAttendees: parseInt(document.getElementById('eventMaxAttendees').value)
+            };
+            
+            try {
+                const response = await fetch('/event/create', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(eventData)
+                });
+                
+                const data = await response.json();
+                const messageDiv = document.getElementById('message');
+                
+                if (data.success) {
+                    messageDiv.innerHTML = '<div class="alert alert-success">Event created successfully! 🎉</div>';
+                    closeCreateEventModal();
+                    setTimeout(() => {
+                        messageDiv.innerHTML = '';
+                        loadDashboard(); // Reload dashboard
+                    }, 2000);
+                } else {
+                    messageDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+                    setTimeout(() => messageDiv.innerHTML = '', 3000);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('message').innerHTML = '<div class="alert alert-error">Failed to create event</div>';
+            }
+        });
+        
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/';
+        }
+        
+        // Load dashboard on page load
+        loadDashboard();
+    </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pragati Event System</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="auth-container">
+        <h1>🎓 Welcome to Pragati Event System</h1>
+        <p style="text-align: center; color: #666; margin: 20px 0;">Loading...</p>
+    </div>
+    
+    <script>
+        // Check if user is already logged in
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        if (token && user.role) {
+            // Redirect based on role
+            if (['super_admin', 'stall_admin', 'ncc_admin'].includes(user.role)) {
+                window.location.href = '/admin-dashboard';
+            } else {
+                window.location.href = '/events';
+            }
+        } else {
+            // Redirect to login
+            window.location.href = '/login.html';
+        }
+    </script>
+</body>
+</html>
