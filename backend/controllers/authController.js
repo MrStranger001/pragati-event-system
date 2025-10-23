@@ -1,90 +1,100 @@
-// const User = require('../models/User');
-// const generateOTP = require('../utils/otp');
-// const sendEmail = require('../utils/sendEmail');
-// const sendSMS = require('../utils/sendSMS');
-
-// exports.register = async (req, res) => {
-//   try {
-//     const { name, email, password, phone, notificationPreference } = req.body;
-//     if (!name || !email || !password || !phone || !notificationPreference) {
-//       return res.status(400).json({ error: 'All fields are required' });
-//     }
-//     if (!email.endsWith('@pragati.edu')) return res.status(400).json({ error: 'Only Pragati emails allowed' });
-
-//     const otp = generateOTP();
-//     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
-
-//     const user = new User({ name, email, password, phone, notificationPreference, otp, otpExpires });
-//     await user.save();
-
-//     // Send OTP via preferred channel
-//     if (notificationPreference === 'email') {
-//       await sendEmail(email, 'Your OTP Code', `Your OTP is ${otp}`);
-//     } else {
-//       await sendSMS(phone, `Your OTP is ${otp}`);
-//     }
-// exports.verifyOTP = async (req, res) => {
-//   try {
-//     const { email, otp } = req.body;
-//     if (!email || !otp) {
-//       return res.status(400).json({ error: 'Email and OTP are required' });
-//     }
-//     const user = await User.findOne({ email });
-//     if (!user) return res.status(404).json({ error: 'User not found' });
-//     if (user.otp !== otp || user.otpExpires < new Date()) {
-//       return res.status(400).json({ error: 'Invalid or expired OTP' });
-//     }
-//     user.emailVerified = true;
-//     user.otp = null;
-//     user.otpExpires = null;
-//     await user.save();
-//     res.json({ message: 'Email verified. You can now log in.' });
-//   } catch (error) {
-//     res.status(500).json({ error: 'Server error', details: error.message });
-//   }
-// };  return res.status(400).json({ error: 'Invalid or expired OTP' });
-//   }
-//   user .emailVerified = true;
-//   user.otp = null;
-//   user.otpExpires = null;
-//   await user.save();
-//   res.json({ message: 'Email verified. You can now log in.' });
-// };
 const User = require('../models/User');
-const generateOTP = require('../utils/otp');
-const sendEmail = require('../utils/sendEmail');
-const sendSMS = require('../utils/sendSMS');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 exports.register = async (req, res) => {
-  const { name, email, password, phone, notificationPreference } = req.body;
-  if (!email.endsWith('@pragati.edu')) return res.status(400).json({ error: 'Only Pragati emails allowed' });
+  try {
+    const { name, email, password, phone, notificationPreference } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email and password are required' });
+    }
+    
+    if (!email.endsWith('@pragati.edu')) {
+      return res.status(400).json({ error: 'Only Pragati emails allowed' });
+    }
 
-  const otp = generateOTP();
-  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
 
-  const user = new User({ name, email, password, phone, notificationPreference, otp, otpExpires });
-  await user.save();
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Send OTP via preferred channel
-  if (notificationPreference === 'email') {
-    await sendEmail(email, 'Your OTP Code', `Your OTP is ${otp}`);
-  } else {
-    await sendSMS(phone, `Your OTP is ${otp}`);
+    const user = new User({ 
+      name, 
+      email, 
+      password: hashedPassword, 
+      phone: phone || '', 
+      notificationPreference: notificationPreference || 'email',
+      emailVerified: true // No OTP verification needed
+    });
+    
+    await user.save();
+
+    res.json({ message: 'Registration successful. You can now log in.', success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
-
-  res.json({ message: 'Registration started. Please verify OTP sent to your email/SMS.' });
 };
 
-exports.verifyOTP = async (req, res) => {
-  const { email, otp } = req.body;
-  const user = await User.findOne({ email });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (user.otp !== otp || user.otpExpires < new Date()) {
-    return res.status(400).json({ error: 'Invalid or expired OTP' });
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Check password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role, email: user.email },
+      process.env.JWT_SECRET || 'your_jwt_secret_key',
+      { expiresIn: '7d' }
+    );
+
+    res.json({ 
+      message: 'Login successful',
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
-  user.emailVerified = true;
-  user.otp = null;
-  user.otpExpires = null;
-  await user.save();
-  res.json({ message: 'Email verified. You can now log in.' });
+};
+
+exports.updatePhone = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    await User.findByIdAndUpdate(req.user.id, { phone });
+    
+    res.json({ message: 'Phone number updated successfully', success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
 };

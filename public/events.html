@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Events - Pragati Event System</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="events-container">
+            <div class="navbar">
+                <h1>🎓 Pragati Events</h1>
+                <div class="navbar-right">
+                    <div class="user-info" id="userInfo">Loading...</div>
+                    <button class="btn-logout" onclick="logout()">Logout</button>
+                </div>
+            </div>
+            
+            <div id="message"></div>
+            
+            <div id="phonePrompt" style="display: none; background: #fff3cd; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #ffc107;">
+                <h3 style="color: #856404; margin-bottom: 10px;">📱 Add Your Phone Number</h3>
+                <p style="color: #856404; margin-bottom: 15px;">Add your phone number to receive SMS notifications about events!</p>
+                <div style="display: flex; gap: 10px;">
+                    <input type="tel" id="phoneInput" placeholder="+91 9876543210" style="flex: 1; padding: 10px; border: 2px solid #ffc107; border-radius: 5px;">
+                    <button onclick="updatePhone()" class="btn-primary btn-small">Save</button>
+                    <button onclick="dismissPhonePrompt()" class="btn-small" style="background: #ccc; color: #333;">Later</button>
+                </div>
+            </div>
+            
+            <div id="loading" class="loading">Loading events...</div>
+            
+            <div id="eventsGrid" class="events-grid" style="display: none;"></div>
+            
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <h3>No events available</h3>
+                <p>Check back later for upcoming events!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('token');
+        let user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        if (!token) {
+            window.location.href = '/';
+        }
+        
+        // Display user info
+        document.getElementById('userInfo').textContent = `👋 ${user.name}`;
+        
+        // Show phone prompt if phone not set
+        if (!user.phone) {
+            document.getElementById('phonePrompt').style.display = 'block';
+        }
+        
+        async function loadEvents() {
+            try {
+                const response = await fetch('/event/all', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                document.getElementById('loading').style.display = 'none';
+                
+                if (data.success && data.events.length > 0) {
+                    displayEvents(data.events);
+                } else {
+                    document.getElementById('emptyState').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading events:', error);
+                document.getElementById('loading').innerHTML = '<div class="alert alert-error">Failed to load events</div>';
+            }
+        }
+        
+        function displayEvents(events) {
+            const grid = document.getElementById('eventsGrid');
+            grid.style.display = 'grid';
+            grid.innerHTML = '';
+            
+            events.forEach(event => {
+                const eventDate = new Date(event.date).toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                
+                const card = document.createElement('div');
+                card.className = `event-card ${event.category}`;
+                card.innerHTML = `
+                    <div class="event-header">
+                        <h3>${event.name}</h3>
+                        <span class="event-category">${event.category}</span>
+                    </div>
+                    <div class="event-body">
+                        <p>${event.description}</p>
+                        <div class="event-date">📅 ${eventDate}</div>
+                        ${event.location ? `<div class="event-location">📍 ${event.location}</div>` : ''}
+                    </div>
+                    <div class="event-footer">
+                        <span class="attendees-count">👥 ${event.attendees.length}/${event.maxAttendees}</span>
+                        <button class="btn-register" onclick="registerForEvent('${event._id}')" ${event.attendees.length >= event.maxAttendees ? 'disabled' : ''}>
+                            ${event.attendees.length >= event.maxAttendees ? 'Full' : 'Register'}
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+        
+        async function registerForEvent(eventId) {
+            try {
+                const response = await fetch(`/event/${eventId}/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                const messageDiv = document.getElementById('message');
+                
+                if (data.success) {
+                    messageDiv.innerHTML = '<div class="alert alert-success">Successfully registered for the event! 🎉</div>';
+                    setTimeout(() => {
+                        messageDiv.innerHTML = '';
+                        loadEvents(); // Reload events
+                    }, 3000);
+                } else {
+                    messageDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+                    setTimeout(() => messageDiv.innerHTML = '', 3000);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('message').innerHTML = '<div class="alert alert-error">Registration failed</div>';
+            }
+        }
+        
+        async function updatePhone() {
+            const phone = document.getElementById('phoneInput').value;
+            if (!phone) {
+                alert('Please enter a phone number');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/auth/update-phone', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ phone })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    user.phone = phone;
+                    localStorage.setItem('user', JSON.stringify(user));
+                    document.getElementById('phonePrompt').style.display = 'none';
+                    document.getElementById('message').innerHTML = '<div class="alert alert-success">Phone number updated! 📱</div>';
+                    setTimeout(() => document.getElementById('message').innerHTML = '', 3000);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        
+        function dismissPhonePrompt() {
+            document.getElementById('phonePrompt').style.display = 'none';
+        }
+        
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/';
+        }
+        
+        // Load events on page load
+        loadEvents();
+    </script>
+</body>
+</html>
