@@ -1,0 +1,21 @@
+# Ignore the root node_modules
+/node_modules
+node_modules/   
+# Ignore the root package-lock.json
+/package-lock.json
+
+# Ignore the entire frontend (it's a separate project)
+/frontend
+
+
+**2. Your BACKEND `.gitignore` (in `pragati-event-system/backend/.gitignore`)**
+This file MUST ignore its *own* `node_modules`.
+
+**Replace** the contents of `pragati-event-system/backend/.gitignore` with this:
+
+```:Backend .gitignore:backend/.gitignore
+# Dependencies
+/node_modules
+
+# Environment Variables
+.env
